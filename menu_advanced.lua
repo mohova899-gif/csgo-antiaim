@@ -125,7 +125,7 @@ local yaw_slider = tab:slider("Yaw Offset", -180, 180, 0, 1)
 local delay_slider = tab:slider("Delay Speed", 0, 200, 100, 5)
 
 -- Profile management
-tab:separator()
+tab:label("========== PROFILES ==========")
 local profile_combo = tab:combo("Profile", {"Aggressive", "Defensive", "Balanced"})
 local load_profile_btn = tab:button("Load Profile", function()
     menu:load_profile_from_combo()
@@ -135,8 +135,7 @@ local save_profile_btn = tab:button("Save as Custom", function()
 end)
 
 -- Conditions
-tab:separator()
-tab:label("Conditions:")
+tab:label("========== CONDITIONS ==========")
 local cond_standing = tab:switch("Standing", true)
 local cond_moving = tab:switch("Moving", true)
 local cond_slowwalking = tab:switch("Slow Walking", true)
@@ -146,7 +145,7 @@ local cond_in_air_crouch = tab:switch("In Air Crouch", true)
 local cond_on_use = tab:switch("On Use", false)
 
 -- Advanced options
-tab:separator()
+tab:label("========== ADVANCED ==========")
 local dynamic_mode = tab:switch("Dynamic Mode", false)
 local show_stats = tab:switch("Show Statistics", false)
 
