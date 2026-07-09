@@ -1,5 +1,5 @@
--- CSGO Anti-Aim Menu using PUI (Neverlose UI Framework)
--- Interactive menu for controlling anti-aim presets and conditions
+-- CSGO Anti-Aim Menu using Neverlose Script API
+-- Simple menu for controlling anti-aim presets and conditions
 
 local menu = {}
 
@@ -25,174 +25,124 @@ else
     }
 end
 
--- Menu structure
-local menu_root = ui.Group("Anti-Aim", "antiaim_menu")
-
--- Main toggle
-local toggle_enabled = ui.Checkbox(menu_root, "Enable Anti-Aim", "antiaim_toggle", false)
-
--- Preset selection
-local preset_group = ui.Group(menu_root, "Presets", "antiaim_presets")
-local preset_classic = ui.Checkbox(preset_group, "Classic Jitter", "preset_classic", true)
-local preset_delay = ui.Checkbox(preset_group, "Delay Jitter", "preset_delay", false)
-local preset_conditional = ui.Checkbox(preset_group, "Conditional", "preset_conditional", false)
-
--- Jitter settings
-local jitter_group = ui.Group(menu_root, "Jitter Settings", "antiaim_jitter")
-local jitter_strength = ui.Slider(jitter_group, "Jitter Strength", "jitter_strength", 0, 100, 25, 1)
-local delay_jitter_speed = ui.Slider(jitter_group, "Delay Jitter Speed", "delay_speed", 50, 300, 100, 10)
+-- Console variables for menu control
+convar.Register("antiaim_enabled", "0", "Enable/disable anti-aim")
+convar.Register("antiaim_preset", "classic_jitter", "Anti-aim preset: classic_jitter, delay_jitter, conditional")
+convar.Register("antiaim_jitter_strength", "25", "Jitter strength (0-100)")
+convar.Register("antiaim_delay_speed", "100", "Delay jitter speed (50-300)")
 
 -- Conditions
-local conditions_group = ui.Group(menu_root, "Conditions", "antiaim_conditions")
-local cond_standing = ui.Checkbox(conditions_group, "Standing", "cond_standing", true)
-local cond_moving = ui.Checkbox(conditions_group, "Moving", "cond_moving", true)
-local cond_slowwalking = ui.Checkbox(conditions_group, "Slowwalking", "cond_slowwalking", true)
-local cond_crouching = ui.Checkbox(conditions_group, "Crouching", "cond_crouching", true)
-local cond_in_air = ui.Checkbox(conditions_group, "In Air", "cond_in_air", true)
-local cond_in_air_crouch = ui.Checkbox(conditions_group, "In Air & Crouching", "cond_in_air_crouch", true)
-local cond_on_use = ui.Checkbox(conditions_group, "On Use", "cond_on_use", false)
+convar.Register("antiaim_cond_standing", "1", "Enable on standing")
+convar.Register("antiaim_cond_moving", "1", "Enable on moving")
+convar.Register("antiaim_cond_slowwalking", "1", "Enable on slowwalking")
+convar.Register("antiaim_cond_crouching", "1", "Enable on crouching")
+convar.Register("antiaim_cond_in_air", "1", "Enable on in air")
+convar.Register("antiaim_cond_in_air_crouch", "1", "Enable on in air crouching")
+convar.Register("antiaim_cond_on_use", "0", "Enable on use")
 
--- Advanced settings
-local advanced_group = ui.Group(menu_root, "Advanced", "antiaim_advanced")
-local pitch_value = ui.Slider(advanced_group, "Pitch", "pitch_value", -90, 90, 89, 1)
-local yaw_offset = ui.Slider(advanced_group, "Yaw Offset", "yaw_offset", -180, 180, 0, 15)
+-- Advanced
+convar.Register("antiaim_pitch", "89", "Pitch angle")
+convar.Register("antiaim_yaw_offset", "0", "Yaw offset")
 
--- Info and status
-local info_group = ui.Group(menu_root, "Info", "antiaim_info")
+-- Menu control functions
+function menu:toggle()
+    local enabled = convar.GetInt("antiaim_enabled") == 1
+    convar.SetValue("antiaim_enabled", enabled and "0" or "1")
+    antiaim.enabled = not enabled
+    print("[Anti-Aim] " .. (not enabled and "Enabled" or "Disabled"))
+end
 
--- Button group
-local button_group = ui.Group(menu_root, "Actions", "antiaim_actions")
-local reset_btn = ui.Button(button_group, "Reset Settings", "reset_settings")
-local save_btn = ui.Button(button_group, "Save Config", "save_config")
-local load_btn = ui.Button(button_group, "Load Config", "load_config")
-
--- Callback functions
-local function update_preset()
-    if toggle_enabled:GetValue() then
-        if preset_classic:GetValue() then
-            preset_delay:SetValue(false)
-            preset_conditional:SetValue(false)
-            antiaim:set_preset("classic_jitter")
-        elseif preset_delay:GetValue() then
-            preset_classic:SetValue(false)
-            preset_conditional:SetValue(false)
-            antiaim:set_preset("delay_jitter")
-        elseif preset_conditional:GetValue() then
-            preset_classic:SetValue(false)
-            preset_delay:SetValue(false)
-            antiaim:set_preset("conditional")
-        end
+function menu:set_preset(preset_name)
+    if preset_name == "classic" or preset_name == "classic_jitter" then
+        convar.SetValue("antiaim_preset", "classic_jitter")
+        antiaim:set_preset("classic_jitter")
+        print("[Anti-Aim] Preset: Classic Jitter")
+    elseif preset_name == "delay" or preset_name == "delay_jitter" then
+        convar.SetValue("antiaim_preset", "delay_jitter")
+        antiaim:set_preset("delay_jitter")
+        print("[Anti-Aim] Preset: Delay Jitter")
+    elseif preset_name == "conditional" then
+        convar.SetValue("antiaim_preset", "conditional")
+        antiaim:set_preset("conditional")
+        print("[Anti-Aim] Preset: Conditional")
     end
 end
 
-local function update_toggle()
-    if toggle_enabled:GetValue() then
-        antiaim.enabled = true
-    else
-        antiaim.enabled = false
+function menu:set_jitter_strength(strength)
+    if strength >= 0 and strength <= 100 then
+        convar.SetValue("antiaim_jitter_strength", tostring(strength))
+        antiaim:set_jitter_strength(strength)
+        print("[Anti-Aim] Jitter Strength: " .. strength)
     end
 end
 
-local function update_jitter_strength()
-    local strength = jitter_strength:GetValue()
-    antiaim:set_jitter_strength(strength)
-end
-
-local function update_conditions()
-    antiaim.conditions = {
-        standing = cond_standing:GetValue(),
-        moving = cond_moving:GetValue(),
-        slowwalking = cond_slowwalking:GetValue(),
-        crouching = cond_crouching:GetValue(),
-        in_air = cond_in_air:GetValue(),
-        in_air_crouching = cond_in_air_crouch:GetValue(),
-        on_use = cond_on_use:GetValue()
-    }
-end
-
-local function reset_settings()
-    toggle_enabled:SetValue(false)
-    preset_classic:SetValue(true)
-    preset_delay:SetValue(false)
-    preset_conditional:SetValue(false)
-    jitter_strength:SetValue(25)
-    delay_jitter_speed:SetValue(100)
-    cond_standing:SetValue(true)
-    cond_moving:SetValue(true)
-    cond_slowwalking:SetValue(true)
-    cond_crouching:SetValue(true)
-    cond_in_air:SetValue(true)
-    cond_in_air_crouch:SetValue(true)
-    cond_on_use:SetValue(false)
-    pitch_value:SetValue(89)
-    yaw_offset:SetValue(0)
+function menu:toggle_condition(condition_name, enabled)
+    local cvar_name = "antiaim_cond_" .. condition_name
+    if enabled ~= nil then
+        convar.SetValue(cvar_name, enabled and "1" or "0")
+    end
     
-    update_toggle()
-    update_preset()
-    update_conditions()
+    antiaim.conditions[condition_name] = convar.GetInt(cvar_name) == 1
+    print("[Anti-Aim] Condition '" .. condition_name .. "': " .. (antiaim.conditions[condition_name] and "Enabled" or "Disabled"))
 end
 
-local function save_config()
-    local config = {
-        enabled = toggle_enabled:GetValue(),
-        preset = antiaim.preset,
-        jitter_strength = jitter_strength:GetValue(),
-        delay_speed = delay_jitter_speed:GetValue(),
-        conditions = antiaim.conditions,
-        pitch = pitch_value:GetValue(),
-        yaw_offset = yaw_offset:GetValue()
+function menu:get_status()
+    return {
+        enabled = convar.GetInt("antiaim_enabled") == 1,
+        preset = convar.GetString("antiaim_preset"),
+        jitter_strength = convar.GetInt("antiaim_jitter_strength"),
+        conditions = antiaim.conditions
     }
-    print("[Anti-Aim] Config saved!")
 end
 
-local function load_config()
-    print("[Anti-Aim] Config loaded!")
+function menu:reset()
+    convar.SetValue("antiaim_enabled", "0")
+    convar.SetValue("antiaim_preset", "classic_jitter")
+    convar.SetValue("antiaim_jitter_strength", "25")
+    convar.SetValue("antiaim_delay_speed", "100")
+    convar.SetValue("antiaim_cond_standing", "1")
+    convar.SetValue("antiaim_cond_moving", "1")
+    convar.SetValue("antiaim_cond_slowwalking", "1")
+    convar.SetValue("antiaim_cond_crouching", "1")
+    convar.SetValue("antiaim_cond_in_air", "1")
+    convar.SetValue("antiaim_cond_in_air_crouch", "1")
+    convar.SetValue("antiaim_cond_on_use", "0")
+    convar.SetValue("antiaim_pitch", "89")
+    convar.SetValue("antiaim_yaw_offset", "0")
+    
+    print("[Anti-Aim] Settings reset to default")
 end
 
--- Attach callbacks to UI elements
-preset_classic:RegisterCallback(update_preset)
-preset_delay:RegisterCallback(update_preset)
-preset_conditional:RegisterCallback(update_preset)
-toggle_enabled:RegisterCallback(update_toggle)
-jitter_strength:RegisterCallback(update_jitter_strength)
-cond_standing:RegisterCallback(update_conditions)
-cond_moving:RegisterCallback(update_conditions)
-cond_slowwalking:RegisterCallback(update_conditions)
-cond_crouching:RegisterCallback(update_conditions)
-cond_in_air:RegisterCallback(update_conditions)
-cond_in_air_crouch:RegisterCallback(update_conditions)
-cond_on_use:RegisterCallback(update_conditions)
-reset_btn:RegisterCallback(reset_settings)
-save_btn:RegisterCallback(save_config)
-load_btn:RegisterCallback(load_config)
+-- Console commands for easy menu control
+print("========== Anti-Aim Menu ==========")
+print("Available commands:")
+print("  antiaim_toggle       - Toggle anti-aim on/off")
+print("  antiaim_preset       - Set preset (classic_jitter, delay_jitter, conditional)")
+print("  antiaim_jitter_strength - Set jitter strength (0-100)")
+print("  antiaim_delay_speed  - Set delay speed (50-300)")
+print("")
+print("Conditions (1=on, 0=off):")
+print("  antiaim_cond_standing")
+print("  antiaim_cond_moving")
+print("  antiaim_cond_slowwalking")
+print("  antiaim_cond_crouching")
+print("  antiaim_cond_in_air")
+print("  antiaim_cond_in_air_crouch")
+print("  antiaim_cond_on_use")
+print("===================================")
 
--- Menu utility functions
-function menu:get_enabled()
-    return toggle_enabled:GetValue()
-end
-
-function menu:set_enabled(value)
-    toggle_enabled:SetValue(value)
-    update_toggle()
-end
-
-function menu:get_preset()
-    return antiaim.preset
-end
-
-function menu:get_conditions()
-    return antiaim.conditions
-end
-
-function menu:get_jitter_strength()
-    return jitter_strength:GetValue()
-end
-
--- Initialize menu
+-- Initialize
 function menu:init()
-    update_toggle()
-    update_preset()
-    update_conditions()
+    antiaim.enabled = convar.GetInt("antiaim_enabled") == 1
+    antiaim.conditions = {
+        standing = convar.GetInt("antiaim_cond_standing") == 1,
+        moving = convar.GetInt("antiaim_cond_moving") == 1,
+        slowwalking = convar.GetInt("antiaim_cond_slowwalking") == 1,
+        crouching = convar.GetInt("antiaim_cond_crouching") == 1,
+        in_air = convar.GetInt("antiaim_cond_in_air") == 1,
+        in_air_crouching = convar.GetInt("antiaim_cond_in_air_crouch") == 1,
+        on_use = convar.GetInt("antiaim_cond_on_use") == 1
+    }
     print("[Anti-Aim Menu] Initialized successfully!")
 end
 
