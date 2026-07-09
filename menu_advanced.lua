@@ -1,6 +1,7 @@
--- CSGO Anti-Aim Menu Advanced - Neverlose Script
--- Покращене меню anti-aim з повним функціоналом
+-- CSGO Anti-Aim Menu Advanced - Neverlose Script with PUI
+-- Покращене меню anti-aim з графічним інтерфейсом
 
+local pui = require("neverlose/pui")
 local menu = {}
 
 -- ================================================================
@@ -61,17 +62,20 @@ local menu_state = {
         aggressive = {
             preset = "delay_jitter",
             jitter_strength = 75,
-            conditions = {standing = true, moving = true, slowwalking = false, crouching = true, in_air = true, in_air_crouching = true, on_use = false}
+            conditions = {standing = true, moving = true, slowwalking = false, crouching = true, in_air = true, in_air_crouching = true, on_use = false},
+            description = "Maximum protection while moving"
         },
         defensive = {
             preset = "classic_jitter",
             jitter_strength = 50,
-            conditions = {standing = true, moving = true, slowwalking = true, crouching = true, in_air = true, in_air_crouching = true, on_use = true}
+            conditions = {standing = true, moving = true, slowwalking = true, crouching = true, in_air = true, in_air_crouching = true, on_use = true},
+            description = "Full protection in all situations"
         },
         balanced = {
             preset = "conditional",
             jitter_strength = 45,
-            conditions = {standing = true, moving = true, slowwalking = true, crouching = true, in_air = true, in_air_crouching = true, on_use = false}
+            conditions = {standing = true, moving = true, slowwalking = true, crouching = true, in_air = true, in_air_crouching = true, on_use = false},
+            description = "Balanced for all combat"
         }
     },
     current_profile = "balanced",
@@ -79,13 +83,85 @@ local menu_state = {
 }
 
 -- ================================================================
--- ЛОГУВАННЯ БЕЗ ANSI КОДІВ
+-- ЛОГУВАННЯ
 -- ================================================================
 local function log(message, level)
     level = level or "INFO"
     local prefix = "[Anti-Aim Advanced]"
     print(prefix .. " [" .. level .. "] " .. tostring(message))
 end
+
+-- ================================================================
+-- SIDEBAR
+-- ================================================================
+local sidebar_name = "Anti-Aim Advanced"
+local sidebar_len  = #sidebar_name
+
+events.render(function()
+    if pui.get_alpha() == 0 then return end
+    local c1     = pui.get_style("Active Text")
+    local c2     = pui.get_style("Link Active")
+    local result = ""
+    for i = 1, sidebar_len do
+        local ch = sidebar_name:sub(i, i)
+        local t  = math.abs(math.sin(globals.realtime() + (i - 1) / sidebar_len * 1.5))
+        local c  = c2:lerp(c1, t)
+        result   = result .. string.format("\a%s%s", c:to_hex(), ch)
+    end
+    pui.sidebar(result, "link")
+end)
+
+-- ================================================================
+-- PUI MENU SETUP
+-- ================================================================
+local tab = pui.create("Anti-Aim Advanced", "Visuals", 1)
+
+-- Main controls
+local enable = tab:switch("Enable", false)
+local preset_combo = tab:combo("Preset", {"Classic Jitter", "Delay Jitter", "Conditional"})
+local jitter_slider = tab:slider("Jitter Strength", 0, 100, 25, 1)
+local pitch_slider = tab:slider("Pitch", -90, 90, 89, 1)
+local yaw_slider = tab:slider("Yaw Offset", -180, 180, 0, 1)
+local delay_slider = tab:slider("Delay Speed", 0, 200, 100, 5)
+
+-- Profile management
+tab:separator()
+local profile_combo = tab:combo("Profile", {"Aggressive", "Defensive", "Balanced"})
+local load_profile_btn = tab:button("Load Profile", function()
+    menu:load_profile_from_combo()
+end)
+local save_profile_btn = tab:button("Save as Custom", function()
+    menu:save_profile("custom_" .. os.time(), "Custom Profile")
+end)
+
+-- Conditions
+tab:separator()
+tab:label("Conditions:")
+local cond_standing = tab:switch("Standing", true)
+local cond_moving = tab:switch("Moving", true)
+local cond_slowwalking = tab:switch("Slow Walking", true)
+local cond_crouching = tab:switch("Crouching", true)
+local cond_in_air = tab:switch("In Air", true)
+local cond_in_air_crouch = tab:switch("In Air Crouch", true)
+local cond_on_use = tab:switch("On Use", false)
+
+-- Advanced options
+tab:separator()
+local dynamic_mode = tab:switch("Dynamic Mode", false)
+local show_stats = tab:switch("Show Statistics", false)
+
+-- ================================================================
+-- УМОВИ -> PUI MAPPING
+-- ================================================================
+local condition_switches = {
+    standing = cond_standing,
+    moving = cond_moving,
+    slowwalking = cond_slowwalking,
+    crouching = cond_crouching,
+    in_air = cond_in_air,
+    in_air_crouching = cond_in_air_crouch,
+    on_use = cond_on_use
+}
 
 -- ================================================================
 -- ОСНОВНІ ФУНКЦІЇ
@@ -207,6 +283,14 @@ function menu:load_profile(profile_name)
     return true
 end
 
+function menu:load_profile_from_combo()
+    local combo_index = profile_combo:get()
+    local profile_names = {"aggressive", "defensive", "balanced"}
+    if profile_names[combo_index] then
+        menu:load_profile(profile_names[combo_index])
+    end
+end
+
 function menu:save_profile(profile_name, description)
     local new_profile = {}
     for k, v in pairs(menu_state.conditions) do
@@ -232,36 +316,6 @@ function menu:delete_profile(profile_name)
     end
     log("Profile not found: " .. profile_name, "WARN")
     return false
-end
-
-function menu:list_profiles()
-    log("========== Available Profiles ==========")
-    for name, profile in pairs(menu_state.profiles) do
-        local desc = profile.description or "No description"
-        log("  * " .. name .. " - " .. desc)
-    end
-    log("=========================================")
-end
-
--- ================================================================
--- УМОВИ
--- ================================================================
-function menu:enable_all_conditions()
-    for cond_name, _ in pairs(menu_state.conditions) do
-        if cond_name ~= "on_use" then
-            menu_state.conditions[cond_name] = true
-            antiaim.conditions[cond_name] = true
-        end
-    end
-    log("All conditions enabled")
-end
-
-function menu:disable_all_conditions()
-    for cond_name, _ in pairs(menu_state.conditions) do
-        menu_state.conditions[cond_name] = false
-        antiaim.conditions[cond_name] = false
-    end
-    log("All conditions disabled")
 end
 
 -- ================================================================
@@ -292,21 +346,12 @@ end
 -- ================================================================
 -- СТАТИСТИКА
 -- ================================================================
-function menu:get_statistics()
-    local copy = {}
-    for k, v in pairs(menu_state.statistics) do
-        copy[k] = v
-    end
-    return copy
-end
-
 function menu:print_statistics()
     local stats = menu_state.statistics
     log("========== STATISTICS ==========")
     log("Toggles: " .. stats.toggles)
     log("Preset changes: " .. stats.preset_changes)
     log("Condition changes: " .. stats.condition_changes)
-    log("Uptime: " .. stats.uptime .. " sec")
     log("================================")
 end
 
@@ -323,24 +368,6 @@ end
 -- ================================================================
 -- СТАТУС
 -- ================================================================
-function menu:get_status()
-    local cond_copy = {}
-    for k, v in pairs(menu_state.conditions) do
-        cond_copy[k] = v
-    end
-    
-    return {
-        enabled = menu_state.enabled,
-        preset = menu_state.preset,
-        jitter_strength = menu_state.jitter_strength,
-        pitch = menu_state.pitch_value,
-        yaw_offset = menu_state.yaw_offset,
-        conditions = cond_copy,
-        profile = menu_state.current_profile,
-        dynamic_mode = menu_state.dynamic_mode
-    }
-end
-
 function menu:print_status()
     log("========== ANTI-AIM STATUS ==========")
     log("State: " .. (menu_state.enabled and "ON" or "OFF"))
@@ -387,48 +414,60 @@ function menu:reset()
 end
 
 -- ================================================================
+-- MAIN UPDATE LOOP
+-- ================================================================
+events.net_update_end(function()
+    -- Read from PUI controls
+    menu_state.enabled = enable:get()
+    antiaim.enabled = menu_state.enabled
+    
+    -- Preset
+    local preset_index = preset_combo:get()
+    local presets = {"classic_jitter", "delay_jitter", "conditional"}
+    if presets[preset_index] then
+        menu_state.preset = presets[preset_index]
+        antiaim:set_preset(menu_state.preset)
+    end
+    
+    -- Sliders
+    menu_state.jitter_strength = jitter_slider:get()
+    menu_state.pitch_value = pitch_slider:get()
+    menu_state.yaw_offset = yaw_slider:get()
+    menu_state.delay_speed = delay_slider:get()
+    
+    antiaim:set_jitter_strength(menu_state.jitter_strength)
+    
+    -- Conditions
+    menu_state.conditions.standing = cond_standing:get()
+    menu_state.conditions.moving = cond_moving:get()
+    menu_state.conditions.slowwalking = cond_slowwalking:get()
+    menu_state.conditions.crouching = cond_crouching:get()
+    menu_state.conditions.in_air = cond_in_air:get()
+    menu_state.conditions.in_air_crouching = cond_in_air_crouch:get()
+    menu_state.conditions.on_use = cond_on_use:get()
+    
+    antiaim.conditions = menu_state.conditions
+    
+    -- Dynamic mode
+    menu_state.dynamic_mode = dynamic_mode:get()
+    if menu_state.dynamic_mode then
+        menu:apply_dynamic_mode()
+    end
+    
+    -- Statistics display
+    if show_stats:get() then
+        menu:print_statistics()
+    end
+end)
+
+-- ================================================================
 -- ДОПОМОГА
 -- ================================================================
 function menu:print_help()
     log("========== ANTI-AIM MENU HELP ==========")
-    log("")
-    log("--- MAIN COMMANDS ---")
-    log("menu:toggle() - Toggle ON/OFF")
-    log("menu:set_preset(name) - Set preset (classic_jitter, delay_jitter, conditional)")
-    log("menu:set_jitter_strength(val) - Set strength 0-100")
-    log("menu:set_pitch(val) - Set pitch -90 to 90")
-    log("menu:set_yaw_offset(val) - Set yaw -180 to 180")
-    log("")
-    log("--- CONDITIONS ---")
-    log("menu:toggle_condition(name) - Toggle condition")
-    log("menu:enable_all_conditions() - Enable all")
-    log("menu:disable_all_conditions() - Disable all")
-    log("")
-    log("--- PROFILES ---")
-    log("menu:load_profile(name) - Load profile")
-    log("menu:save_profile(name, desc) - Save profile")
-    log("menu:delete_profile(name) - Delete profile")
-    log("menu:list_profiles() - List all profiles")
-    log("")
-    log("--- DYNAMIC MODE ---")
-    log("menu:toggle_dynamic_mode() - Toggle dynamic mode")
-    log("menu:apply_dynamic_mode() - Apply dynamic mode")
-    log("")
-    log("--- STATISTICS ---")
-    log("menu:get_statistics() - Get statistics table")
-    log("menu:print_statistics() - Print statistics")
-    log("menu:reset_statistics() - Reset statistics")
-    log("")
-    log("--- STATUS ---")
-    log("menu:get_status() - Get current status")
+    log("Use the menu in Visuals tab!")
     log("menu:print_status() - Print status")
     log("menu:reset() - Reset all to default")
-    log("")
-    log("--- CONDITIONS LIST ---")
-    log("standing, moving, slowwalking, crouching, in_air, in_air_crouching, on_use")
-    log("")
-    log("--- PRESETS ---")
-    log("classic_jitter, delay_jitter, conditional")
     log("========================================")
 end
 
@@ -441,14 +480,11 @@ function menu:init()
     antiaim.conditions = menu_state.conditions
     
     log("Anti-Aim Menu Advanced initialized!")
-    log("Type: menu:print_help() for commands")
+    log("Menu is available in Visuals tab")
     
     return true
 end
 
--- ================================================================
--- AUTO-INITIALIZATION
--- ================================================================
 menu:init()
 
 return menu
