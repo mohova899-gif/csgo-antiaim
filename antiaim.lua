@@ -29,10 +29,10 @@ local presets = {
     classic_jitter = {
         name = "Classic Jitter",
         description = "Optimal for 2x2 tournament play",
-        execute = function(local_player, cmd)
-            if not local_player or not cmd then return end
+        execute = function(cmd)
+            if not cmd then return end
             
-            local current_time = globals.frametime()
+            local current_time = engine.GetSimulationTime()
             local jitter_value = math.sin(current_time * 200) * 45
             
             cmd.viewangles.y = jitter_value
@@ -46,10 +46,10 @@ local presets = {
     delay_jitter = {
         name = "Delay Jitter",
         description = "Delayed jitter for enhanced unpredictability",
-        execute = function(local_player, cmd)
-            if not local_player or not cmd then return end
+        execute = function(cmd)
+            if not cmd then return end
             
-            local current_time = globals.frametime()
+            local current_time = engine.GetSimulationTime()
             local delay = 0.05
             local jitter_value = math.sin((current_time - delay) * 200) * 45
             
@@ -64,38 +64,42 @@ local presets = {
     conditional = {
         name = "Conditional",
         description = "Adapts anti-aim based on player state",
-        execute = function(local_player, cmd)
-            if not local_player or not cmd then return end
+        execute = function(cmd)
+            if not cmd then return end
+            
+            local local_player = entityList.GetClientEntity(0)
+            if not local_player then return end
             
             local velocity = local_player:GetVelocity()
             local speed = velocity:Length()
             
             if speed < 5 then
                 -- Standing
-                cmd.viewangles.y = math.sin(globals.frametime() * 150) * 35
+                cmd.viewangles.y = math.sin(engine.GetSimulationTime() * 150) * 35
                 cmd.viewangles.x = 89
             elseif speed < 50 then
                 -- Slowwalking
-                cmd.viewangles.y = math.sin(globals.frametime() * 180) * 40
+                cmd.viewangles.y = math.sin(engine.GetSimulationTime() * 180) * 40
                 cmd.viewangles.x = 85
             elseif speed < 150 then
                 -- Moving
-                cmd.viewangles.y = math.sin(globals.frametime() * 200) * 45
+                cmd.viewangles.y = math.sin(engine.GetSimulationTime() * 200) * 45
                 cmd.viewangles.x = 80
             else
                 -- Fast moving
-                cmd.viewangles.y = math.sin(globals.frametime() * 220) * 50
+                cmd.viewangles.y = math.sin(engine.GetSimulationTime() * 220) * 50
                 cmd.viewangles.x = 75
             end
             
             -- Check if in air
-            if not local_player:IsOnGround() then
-                cmd.viewangles.x = math.cos(globals.frametime() * 200) * 60
-                cmd.viewangles.y = math.sin(globals.frametime() * 200) * 60
+            local flags = local_player:GetFlags()
+            if not (flags % 2 == 1) then
+                cmd.viewangles.x = math.cos(engine.GetSimulationTime() * 200) * 60
+                cmd.viewangles.y = math.sin(engine.GetSimulationTime() * 200) * 60
             end
             
             -- Check if crouching
-            if local_player:GetFlags() % 2 == 1 then
+            if (flags / 2) % 2 == 1 then
                 cmd.viewangles.x = cmd.viewangles.x + 10
             end
             
@@ -105,7 +109,8 @@ local presets = {
 }
 
 -- Get current player state
-local function get_player_state(local_player)
+local function get_player_state()
+    local local_player = entityList.GetClientEntity(0)
     if not local_player then return nil end
     
     local velocity = local_player:GetVelocity()
@@ -116,8 +121,8 @@ local function get_player_state(local_player)
         is_moving = speed > 5,
         is_slowwalking = speed > 5 and speed < 50,
         is_running = speed >= 150,
-        is_crouching = (flags % 2 == 1),
-        is_in_air = not local_player:IsOnGround(),
+        is_crouching = (flags / 2) % 2 == 1,
+        is_in_air = not (flags % 2 == 1),
         velocity = speed
     }
     
@@ -151,10 +156,10 @@ end
 function antiaim:apply(cmd)
     if not self.enabled then return end
     
-    local local_player = entity_manager.GetLocalPlayer()
-    if not local_player or local_player:IsDead() then return end
+    local local_player = entityList.GetClientEntity(0)
+    if not local_player or not cmd then return end
     
-    local player_state = get_player_state(local_player)
+    local player_state = get_player_state()
     local current_preset = presets[self.preset]
     
     if not current_preset then return end
@@ -169,30 +174,9 @@ function antiaim:apply(cmd)
     end
     
     if any_condition_active or self.preset == "classic_jitter" then
-        current_preset.execute(local_player, cmd)
+        current_preset.execute(cmd)
     end
 end
-
--- Callback for each frame
-callback.Register("on_FrameStageNotify", function(stage)
-    if stage == FRAME_NET_UPDATE_POSTDATAUPDATE_START then
-        antiaim:apply(cmd)
-    end
-end)
-
--- Console commands for control
-convar.Register("antiaim_enabled", "1", "Enable/disable anti-aim")
-convar.Register("antiaim_preset", "classic_jitter", "Set anti-aim preset: classic_jitter, delay_jitter, conditional")
-convar.Register("antiaim_jitter_strength", "25", "Jitter strength (0-100)")
-
--- Update settings from convars
-callback.Register("on_FrameStageNotify", function(stage)
-    if stage == FRAME_RENDER then
-        antiaim.enabled = convar.GetInt("antiaim_enabled") == 1
-        antiaim.preset = convar.GetString("antiaim_preset")
-        antiaim.jitter_strength = convar.GetInt("antiaim_jitter_strength")
-    end
-end)
 
 -- Utility functions
 function antiaim:set_preset(preset_name)
@@ -222,6 +206,14 @@ function antiaim:get_info()
         preset = self.preset,
         conditions_active = self.conditions
     }
+end
+
+function antiaim:set_jitter_strength(strength)
+    if strength >= 0 and strength <= 100 then
+        self.jitter_strength = strength
+        return true
+    end
+    return false
 end
 
 -- Return module
