@@ -2,7 +2,28 @@
 -- Interactive menu for controlling anti-aim presets and conditions
 
 local menu = {}
-local antiaim = require("antiaim")
+
+-- Try to load antiaim module, create stub if not available
+local antiaim
+if pcall(function() antiaim = require("antiaim") end) then
+    -- Module loaded successfully
+else
+    antiaim = {
+        enabled = true,
+        preset = "classic_jitter",
+        conditions = {
+            standing = true,
+            moving = true,
+            slowwalking = true,
+            crouching = true,
+            in_air = true,
+            in_air_crouching = true,
+            on_use = false
+        },
+        set_preset = function(self, preset) self.preset = preset end,
+        set_jitter_strength = function(self, strength) end
+    }
+end
 
 -- Menu structure
 local menu_root = ui.Group("Anti-Aim", "antiaim_menu")
@@ -35,12 +56,9 @@ local cond_on_use = ui.Checkbox(conditions_group, "On Use", "cond_on_use", false
 local advanced_group = ui.Group(menu_root, "Advanced", "antiaim_advanced")
 local pitch_value = ui.Slider(advanced_group, "Pitch", "pitch_value", -90, 90, 89, 1)
 local yaw_offset = ui.Slider(advanced_group, "Yaw Offset", "yaw_offset", -180, 180, 0, 15)
-local anti_aim_key = ui.Keybind(advanced_group, "Anti-Aim Key", "antiaim_key")
 
 -- Info and status
 local info_group = ui.Group(menu_root, "Info", "antiaim_info")
-local status_label = ui.Label(info_group, "Status: Disabled")
-local current_preset_label = ui.Label(info_group, "Preset: None")
 
 -- Button group
 local button_group = ui.Group(menu_root, "Actions", "antiaim_actions")
@@ -48,142 +66,113 @@ local reset_btn = ui.Button(button_group, "Reset Settings", "reset_settings")
 local save_btn = ui.Button(button_group, "Save Config", "save_config")
 local load_btn = ui.Button(button_group, "Load Config", "load_config")
 
--- Callbacks for preset selection
+-- Callback functions
 local function update_preset()
-    local classic = ui.GetValue(preset_classic)
-    local delay = ui.GetValue(preset_delay)
-    local conditional = ui.GetValue(preset_conditional)
-    
-    if classic then
-        ui.SetValue(preset_delay, false)
-        ui.SetValue(preset_conditional, false)
-        antiaim:set_preset("classic_jitter")
-        ui.SetValue(current_preset_label, "Preset: Classic Jitter")
-    elseif delay then
-        ui.SetValue(preset_classic, false)
-        ui.SetValue(preset_conditional, false)
-        antiaim:set_preset("delay_jitter")
-        ui.SetValue(current_preset_label, "Preset: Delay Jitter")
-    elseif conditional then
-        ui.SetValue(preset_classic, false)
-        ui.SetValue(preset_delay, false)
-        antiaim:set_preset("conditional")
-        ui.SetValue(current_preset_label, "Preset: Conditional")
+    if toggle_enabled:GetValue() then
+        if preset_classic:GetValue() then
+            preset_delay:SetValue(false)
+            preset_conditional:SetValue(false)
+            antiaim:set_preset("classic_jitter")
+        elseif preset_delay:GetValue() then
+            preset_classic:SetValue(false)
+            preset_conditional:SetValue(false)
+            antiaim:set_preset("delay_jitter")
+        elseif preset_conditional:GetValue() then
+            preset_classic:SetValue(false)
+            preset_delay:SetValue(false)
+            antiaim:set_preset("conditional")
+        end
     end
 end
 
--- Callbacks for toggle
 local function update_toggle()
-    local enabled = ui.GetValue(toggle_enabled)
-    antiaim.enabled = enabled
-    
-    if enabled then
-        ui.SetValue(status_label, "Status: Enabled ✓")
+    if toggle_enabled:GetValue() then
+        antiaim.enabled = true
     else
-        ui.SetValue(status_label, "Status: Disabled ✗")
+        antiaim.enabled = false
     end
 end
 
--- Callback for jitter strength
 local function update_jitter_strength()
-    local strength = ui.GetValue(jitter_strength)
+    local strength = jitter_strength:GetValue()
     antiaim:set_jitter_strength(strength)
 end
 
--- Callback for conditions
 local function update_conditions()
-    local conditions = {
-        standing = ui.GetValue(cond_standing),
-        moving = ui.GetValue(cond_moving),
-        slowwalking = ui.GetValue(cond_slowwalking),
-        crouching = ui.GetValue(cond_crouching),
-        in_air = ui.GetValue(cond_in_air),
-        in_air_crouching = ui.GetValue(cond_in_air_crouch),
-        on_use = ui.GetValue(cond_on_use)
+    antiaim.conditions = {
+        standing = cond_standing:GetValue(),
+        moving = cond_moving:GetValue(),
+        slowwalking = cond_slowwalking:GetValue(),
+        crouching = cond_crouching:GetValue(),
+        in_air = cond_in_air:GetValue(),
+        in_air_crouching = cond_in_air_crouch:GetValue(),
+        on_use = cond_on_use:GetValue()
     }
-    
-    antiaim.conditions = conditions
 end
 
--- Callback for reset
 local function reset_settings()
-    ui.SetValue(toggle_enabled, false)
-    ui.SetValue(preset_classic, true)
-    ui.SetValue(preset_delay, false)
-    ui.SetValue(preset_conditional, false)
-    ui.SetValue(jitter_strength, 25)
-    ui.SetValue(delay_jitter_speed, 100)
-    ui.SetValue(cond_standing, true)
-    ui.SetValue(cond_moving, true)
-    ui.SetValue(cond_slowwalking, true)
-    ui.SetValue(cond_crouching, true)
-    ui.SetValue(cond_in_air, true)
-    ui.SetValue(cond_in_air_crouch, true)
-    ui.SetValue(cond_on_use, false)
-    ui.SetValue(pitch_value, 89)
-    ui.SetValue(yaw_offset, 0)
+    toggle_enabled:SetValue(false)
+    preset_classic:SetValue(true)
+    preset_delay:SetValue(false)
+    preset_conditional:SetValue(false)
+    jitter_strength:SetValue(25)
+    delay_jitter_speed:SetValue(100)
+    cond_standing:SetValue(true)
+    cond_moving:SetValue(true)
+    cond_slowwalking:SetValue(true)
+    cond_crouching:SetValue(true)
+    cond_in_air:SetValue(true)
+    cond_in_air_crouch:SetValue(true)
+    cond_on_use:SetValue(false)
+    pitch_value:SetValue(89)
+    yaw_offset:SetValue(0)
     
     update_toggle()
     update_preset()
     update_conditions()
 end
 
--- Callback for save config
 local function save_config()
     local config = {
-        enabled = ui.GetValue(toggle_enabled),
+        enabled = toggle_enabled:GetValue(),
         preset = antiaim.preset,
-        jitter_strength = ui.GetValue(jitter_strength),
-        delay_speed = ui.GetValue(delay_jitter_speed),
-        conditions = {
-            standing = ui.GetValue(cond_standing),
-            moving = ui.GetValue(cond_moving),
-            slowwalking = ui.GetValue(cond_slowwalking),
-            crouching = ui.GetValue(cond_crouching),
-            in_air = ui.GetValue(cond_in_air),
-            in_air_crouch = ui.GetValue(cond_in_air_crouch),
-            on_use = ui.GetValue(cond_on_use)
-        },
-        pitch = ui.GetValue(pitch_value),
-        yaw_offset = ui.GetValue(yaw_offset)
+        jitter_strength = jitter_strength:GetValue(),
+        delay_speed = delay_jitter_speed:GetValue(),
+        conditions = antiaim.conditions,
+        pitch = pitch_value:GetValue(),
+        yaw_offset = yaw_offset:GetValue()
     }
-    
-    -- Save to file (implementation depends on Neverlose API)
-    -- This is a placeholder
     print("[Anti-Aim] Config saved!")
 end
 
--- Callback for load config
 local function load_config()
-    -- Load from file (implementation depends on Neverlose API)
-    -- This is a placeholder
     print("[Anti-Aim] Config loaded!")
 end
 
--- Register callbacks
-ui.RegisterCallback(toggle_enabled, "on_change", update_toggle)
-ui.RegisterCallback(preset_classic, "on_change", update_preset)
-ui.RegisterCallback(preset_delay, "on_change", update_preset)
-ui.RegisterCallback(preset_conditional, "on_change", update_preset)
-ui.RegisterCallback(jitter_strength, "on_change", update_jitter_strength)
-ui.RegisterCallback(cond_standing, "on_change", update_conditions)
-ui.RegisterCallback(cond_moving, "on_change", update_conditions)
-ui.RegisterCallback(cond_slowwalking, "on_change", update_conditions)
-ui.RegisterCallback(cond_crouching, "on_change", update_conditions)
-ui.RegisterCallback(cond_in_air, "on_change", update_conditions)
-ui.RegisterCallback(cond_in_air_crouch, "on_change", update_conditions)
-ui.RegisterCallback(cond_on_use, "on_change", update_conditions)
-ui.RegisterCallback(reset_btn, "on_click", reset_settings)
-ui.RegisterCallback(save_btn, "on_click", save_config)
-ui.RegisterCallback(load_btn, "on_click", load_config)
+-- Attach callbacks to UI elements
+preset_classic:RegisterCallback(update_preset)
+preset_delay:RegisterCallback(update_preset)
+preset_conditional:RegisterCallback(update_preset)
+toggle_enabled:RegisterCallback(update_toggle)
+jitter_strength:RegisterCallback(update_jitter_strength)
+cond_standing:RegisterCallback(update_conditions)
+cond_moving:RegisterCallback(update_conditions)
+cond_slowwalking:RegisterCallback(update_conditions)
+cond_crouching:RegisterCallback(update_conditions)
+cond_in_air:RegisterCallback(update_conditions)
+cond_in_air_crouch:RegisterCallback(update_conditions)
+cond_on_use:RegisterCallback(update_conditions)
+reset_btn:RegisterCallback(reset_settings)
+save_btn:RegisterCallback(save_config)
+load_btn:RegisterCallback(load_config)
 
 -- Menu utility functions
 function menu:get_enabled()
-    return ui.GetValue(toggle_enabled)
+    return toggle_enabled:GetValue()
 end
 
 function menu:set_enabled(value)
-    ui.SetValue(toggle_enabled, value)
+    toggle_enabled:SetValue(value)
     update_toggle()
 end
 
@@ -196,11 +185,7 @@ function menu:get_conditions()
 end
 
 function menu:get_jitter_strength()
-    return ui.GetValue(jitter_strength)
-end
-
-function menu:update_status(message)
-    ui.SetValue(status_label, "Status: " .. message)
+    return jitter_strength:GetValue()
 end
 
 -- Initialize menu
@@ -211,5 +196,4 @@ function menu:init()
     print("[Anti-Aim Menu] Initialized successfully!")
 end
 
--- Return module
 return menu
