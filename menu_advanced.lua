@@ -48,7 +48,6 @@ local menu_state = {
         in_air_crouching = true,
         on_use = false
     },
-    -- Нові параметри
     pitch_value = 89,
     yaw_offset = 0,
     dynamic_mode = false,
@@ -76,18 +75,16 @@ local menu_state = {
         }
     },
     current_profile = "balanced",
-    last_toggle_time = 0,
-    hotkeys_enabled = true
+    last_toggle_time = 0
 }
 
 -- ================================================================
--- ЛОГУВАННЯ
+-- ЛОГУВАННЯ БЕЗ ANSI КОДІВ
 -- ================================================================
 local function log(message, level)
     level = level or "INFO"
     local prefix = "[Anti-Aim Advanced]"
-    local color = level == "ERROR" and "\27[91m" or level == "WARN" and "\27[93m" or "\27[92m"
-    print(color .. prefix .. " [" .. level .. "] " .. tostring(message) .. "\27[0m")
+    print(prefix .. " [" .. level .. "] " .. tostring(message))
 end
 
 -- ================================================================
@@ -99,7 +96,7 @@ function menu:toggle()
     menu_state.last_toggle_time = os.time()
     antiaim.enabled = menu_state.enabled
     
-    local status = menu_state.enabled and "✓ Увімкнено" or "✗ Вимкнено"
+    local status = menu_state.enabled and "ENABLED" or "DISABLED"
     log("Anti-Aim " .. status)
     return menu_state.enabled
 end
@@ -115,7 +112,7 @@ function menu:set_preset(preset_name)
     
     local preset = valid_presets[preset_name]
     if not preset then
-        log("Невідомий пресет: " .. tostring(preset_name), "WARN")
+        log("Unknown preset: " .. tostring(preset_name), "WARN")
         return false
     end
     
@@ -123,14 +120,14 @@ function menu:set_preset(preset_name)
     antiaim:set_preset(preset)
     menu_state.statistics.preset_changes = menu_state.statistics.preset_changes + 1
     
-    log("Пресет змінено на: " .. preset)
+    log("Preset changed to: " .. preset)
     return true
 end
 
 function menu:set_jitter_strength(strength)
     strength = tonumber(strength) or 25
     if strength < 0 or strength > 100 then
-        log("Невалідне значення: " .. strength .. " (0-100)", "WARN")
+        log("Invalid value: " .. strength .. " (0-100)", "WARN")
         return false
     end
     
@@ -143,7 +140,7 @@ end
 function menu:set_pitch(value)
     value = tonumber(value) or 89
     if value < -90 or value > 90 then
-        log("Невалідний pitch: " .. value .. " (-90 до 90)", "WARN")
+        log("Invalid pitch: " .. value .. " (-90 to 90)", "WARN")
         return false
     end
     
@@ -155,7 +152,7 @@ end
 function menu:set_yaw_offset(value)
     value = tonumber(value) or 0
     if value < -180 or value > 180 then
-        log("Невалідний yaw: " .. value .. " (-180 до 180)", "WARN")
+        log("Invalid yaw: " .. value .. " (-180 to 180)", "WARN")
         return false
     end
     
@@ -166,7 +163,7 @@ end
 
 function menu:toggle_condition(condition_name, enabled)
     if menu_state.conditions[condition_name] == nil then
-        log("Невідома умова: " .. tostring(condition_name), "WARN")
+        log("Unknown condition: " .. tostring(condition_name), "WARN")
         return false
     end
     
@@ -179,8 +176,8 @@ function menu:toggle_condition(condition_name, enabled)
     antiaim.conditions[condition_name] = menu_state.conditions[condition_name]
     menu_state.statistics.condition_changes = menu_state.statistics.condition_changes + 1
     
-    local status = menu_state.conditions[condition_name] and "ВКЛ" or "ВИМК"
-    log("Умова '" .. condition_name .. "': " .. status)
+    local status = menu_state.conditions[condition_name] and "ON" or "OFF"
+    log("Condition '" .. condition_name .. "': " .. status)
     return menu_state.conditions[condition_name]
 end
 
@@ -190,7 +187,7 @@ end
 function menu:load_profile(profile_name)
     local profile = menu_state.profiles[profile_name]
     if not profile then
-        log("Профіль не знайдено: " .. tostring(profile_name), "WARN")
+        log("Profile not found: " .. tostring(profile_name), "WARN")
         return false
     end
     
@@ -206,39 +203,44 @@ function menu:load_profile(profile_name)
     antiaim:set_jitter_strength(profile.jitter_strength)
     antiaim.conditions = menu_state.conditions
     
-    log("Профіль завантажено: " .. profile_name)
+    log("Profile loaded: " .. profile_name)
     return true
 end
 
 function menu:save_profile(profile_name, description)
+    local new_profile = {}
+    for k, v in pairs(menu_state.conditions) do
+        new_profile[k] = v
+    end
+    
     menu_state.profiles[profile_name] = {
         preset = menu_state.preset,
         jitter_strength = menu_state.jitter_strength,
-        conditions = table.copy(menu_state.conditions),
+        conditions = new_profile,
         description = description or "",
         saved_at = os.date("%Y-%m-%d %H:%M:%S")
     }
-    log("Профіль збережено: " .. profile_name)
+    log("Profile saved: " .. profile_name)
     return true
 end
 
 function menu:delete_profile(profile_name)
     if menu_state.profiles[profile_name] then
         menu_state.profiles[profile_name] = nil
-        log("Профіль видалено: " .. profile_name)
+        log("Profile deleted: " .. profile_name)
         return true
     end
-    log("Профіль не знайдено: " .. profile_name, "WARN")
+    log("Profile not found: " .. profile_name, "WARN")
     return false
 end
 
 function menu:list_profiles()
-    log("=== Доступні профілі ===")
+    log("========== Available Profiles ==========")
     for name, profile in pairs(menu_state.profiles) do
-        local desc = profile.description or "Без опису"
-        log("  • " .. name .. " - " .. desc)
+        local desc = profile.description or "No description"
+        log("  * " .. name .. " - " .. desc)
     end
-    log("======================")
+    log("=========================================")
 end
 
 -- ================================================================
@@ -251,7 +253,7 @@ function menu:enable_all_conditions()
             antiaim.conditions[cond_name] = true
         end
     end
-    log("Усі умови активовані")
+    log("All conditions enabled")
 end
 
 function menu:disable_all_conditions()
@@ -259,7 +261,7 @@ function menu:disable_all_conditions()
         menu_state.conditions[cond_name] = false
         antiaim.conditions[cond_name] = false
     end
-    log("Усі умови деактивовані")
+    log("All conditions disabled")
 end
 
 -- ================================================================
@@ -267,15 +269,14 @@ end
 -- ================================================================
 function menu:toggle_dynamic_mode()
     menu_state.dynamic_mode = not menu_state.dynamic_mode
-    local status = menu_state.dynamic_mode and "ВКЛ" or "ВИМК"
-    log("Динамічний режим: " .. status)
+    local status = menu_state.dynamic_mode and "ON" or "OFF"
+    log("Dynamic mode: " .. status)
     return menu_state.dynamic_mode
 end
 
 function menu:apply_dynamic_mode()
     if not menu_state.dynamic_mode then return end
     
-    -- Приклад: автоматично міняй пресет залежно від умов
     local moving = menu_state.conditions.moving
     local crouching = menu_state.conditions.crouching
     
@@ -292,16 +293,20 @@ end
 -- СТАТИСТИКА
 -- ================================================================
 function menu:get_statistics()
-    return table.copy(menu_state.statistics)
+    local copy = {}
+    for k, v in pairs(menu_state.statistics) do
+        copy[k] = v
+    end
+    return copy
 end
 
 function menu:print_statistics()
     local stats = menu_state.statistics
-    log("========== СТАТИСТИКА ==========")
-    log("Включень: " .. stats.toggles)
-    log("Змін пресету: " .. stats.preset_changes)
-    log("Змін умов: " .. stats.condition_changes)
-    log("Активне час: " .. stats.uptime .. " сек")
+    log("========== STATISTICS ==========")
+    log("Toggles: " .. stats.toggles)
+    log("Preset changes: " .. stats.preset_changes)
+    log("Condition changes: " .. stats.condition_changes)
+    log("Uptime: " .. stats.uptime .. " sec")
     log("================================")
 end
 
@@ -312,39 +317,43 @@ function menu:reset_statistics()
         condition_changes = 0,
         uptime = 0
     }
-    log("Статистика скинута")
+    log("Statistics reset")
 end
 
 -- ================================================================
 -- СТАТУС
 -- ================================================================
 function menu:get_status()
+    local cond_copy = {}
+    for k, v in pairs(menu_state.conditions) do
+        cond_copy[k] = v
+    end
+    
     return {
         enabled = menu_state.enabled,
         preset = menu_state.preset,
         jitter_strength = menu_state.jitter_strength,
         pitch = menu_state.pitch_value,
         yaw_offset = menu_state.yaw_offset,
-        conditions = table.copy(menu_state.conditions),
+        conditions = cond_copy,
         profile = menu_state.current_profile,
-        dynamic_mode = menu_state.dynamic_mode,
-        statistics = table.copy(menu_state.statistics)
+        dynamic_mode = menu_state.dynamic_mode
     }
 end
 
 function menu:print_status()
-    log("========== СТАТУС ANTI-AIM ==========")
-    log("Стан: " .. (menu_state.enabled and "✓ ВКЛ" or "✗ ВИМК"))
-    log("Пресет: " .. menu_state.preset)
+    log("========== ANTI-AIM STATUS ==========")
+    log("State: " .. (menu_state.enabled and "ON" or "OFF"))
+    log("Preset: " .. menu_state.preset)
     log("Jitter Strength: " .. menu_state.jitter_strength)
     log("Pitch: " .. menu_state.pitch_value)
     log("Yaw Offset: " .. menu_state.yaw_offset)
-    log("Профіль: " .. menu_state.current_profile)
-    log("Динамічний режим: " .. (menu_state.dynamic_mode and "ВКЛ" or "ВИМК"))
+    log("Profile: " .. menu_state.current_profile)
+    log("Dynamic mode: " .. (menu_state.dynamic_mode and "ON" or "OFF"))
     log("")
-    log("--- Умови ---")
+    log("--- CONDITIONS ---")
     for cond_name, enabled in pairs(menu_state.conditions) do
-        log("  " .. cond_name .. ": " .. (enabled and "ВКЛ" or "ВИМК"))
+        log("  " .. cond_name .. ": " .. (enabled and "ON" or "OFF"))
     end
     log("====================================")
 end
@@ -374,7 +383,7 @@ function menu:reset()
     antiaim:set_preset("classic_jitter")
     antiaim.conditions = menu_state.conditions
     
-    log("Усі налаштування скинуті на стандартні")
+    log("All settings reset to default")
 end
 
 -- ================================================================
@@ -383,43 +392,42 @@ end
 function menu:print_help()
     log("========== ANTI-AIM MENU HELP ==========")
     log("")
-    log("--- ОСНОВНІ КОМАНДИ ---")
-    log("menu:toggle()                      - Включити/вимкнути")
-    log("menu:set_preset(name)              - Встановити пресет")
-    log("menu:set_jitter_strength(val)      - Встановити силу (0-100)")
-    log("menu:set_pitch(val)                - Встановити pitch (-90 до 90)")
-    log("menu:set_yaw_offset(val)           - Встановити yaw offset (-180 до 180)")
+    log("--- MAIN COMMANDS ---")
+    log("menu:toggle() - Toggle ON/OFF")
+    log("menu:set_preset(name) - Set preset (classic_jitter, delay_jitter, conditional)")
+    log("menu:set_jitter_strength(val) - Set strength 0-100")
+    log("menu:set_pitch(val) - Set pitch -90 to 90")
+    log("menu:set_yaw_offset(val) - Set yaw -180 to 180")
     log("")
-    log("--- УМОВИ ---")
-    log("menu:toggle_condition(name)        - Переключити умову")
-    log("menu:enable_all_conditions()       - Активувати усі умови")
-    log("menu:disable_all_conditions()      - Деактивувати усі умови")
+    log("--- CONDITIONS ---")
+    log("menu:toggle_condition(name) - Toggle condition")
+    log("menu:enable_all_conditions() - Enable all")
+    log("menu:disable_all_conditions() - Disable all")
     log("")
-    log("--- ПРОФІЛІ ---")
-    log("menu:load_profile(name)            - Завантажити профіль")
-    log("menu:save_profile(name, desc)      - Зберегти профіль")
-    log("menu:delete_profile(name)          - Видалити профіль")
-    log("menu:list_profiles()               - Список профілів")
+    log("--- PROFILES ---")
+    log("menu:load_profile(name) - Load profile")
+    log("menu:save_profile(name, desc) - Save profile")
+    log("menu:delete_profile(name) - Delete profile")
+    log("menu:list_profiles() - List all profiles")
     log("")
-    log("--- ДИНАМІЧНИЙ РЕЖИМ ---")
-    log("menu:toggle_dynamic_mode()         - Переключити динамічний режим")
-    log("menu:apply_dynamic_mode()          - Застосувати динамічний режим")
+    log("--- DYNAMIC MODE ---")
+    log("menu:toggle_dynamic_mode() - Toggle dynamic mode")
+    log("menu:apply_dynamic_mode() - Apply dynamic mode")
     log("")
-    log("--- СТАТИСТИКА ---")
-    log("menu:get_statistics()              - Отримати статистику")
-    log("menu:print_statistics()            - Показати статистику")
-    log("menu:reset_statistics()            - Скинути статистику")
+    log("--- STATISTICS ---")
+    log("menu:get_statistics() - Get statistics table")
+    log("menu:print_statistics() - Print statistics")
+    log("menu:reset_statistics() - Reset statistics")
     log("")
-    log("--- ІНШІ ---")
-    log("menu:get_status()                  - Отримати статус (таблиця)")
-    log("menu:print_status()                - Показати статус")
-    log("menu:reset()                       - Скинути всі налаштування")
-    log("menu:print_help()                  - Ця справка")
+    log("--- STATUS ---")
+    log("menu:get_status() - Get current status")
+    log("menu:print_status() - Print status")
+    log("menu:reset() - Reset all to default")
     log("")
-    log("--- УМОВИ ---")
+    log("--- CONDITIONS LIST ---")
     log("standing, moving, slowwalking, crouching, in_air, in_air_crouching, on_use")
     log("")
-    log("--- ПРЕСЕТИ ---")
+    log("--- PRESETS ---")
     log("classic_jitter, delay_jitter, conditional")
     log("========================================")
 end
@@ -432,25 +440,10 @@ function menu:init()
     antiaim.preset = menu_state.preset
     antiaim.conditions = menu_state.conditions
     
-    log("Anti-Aim Menu Advanced ініціалізовано!")
-    log("Введи: menu:print_help() для списку команд")
+    log("Anti-Aim Menu Advanced initialized!")
+    log("Type: menu:print_help() for commands")
     
     return true
-end
-
--- ================================================================
--- HELPER FUNCTIONS
--- ================================================================
-function table.copy(t)
-    local copy = {}
-    for k, v in pairs(t) do
-        if type(v) == "table" then
-            copy[k] = table.copy(v)
-        else
-            copy[k] = v
-        end
-    end
-    return copy
 end
 
 -- ================================================================
